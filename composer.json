@@ -1,0 +1,20 @@
+{
+    "name": "getxml/sefaz-nfe",
+    "description": "Sistema MVC para captura de XMLs de notas fiscais da SEFAZ",
+    "type": "project",
+    "require": {
+        "php": ">=7.4",
+        "vlucas/phpdotenv": "^5.5",
+        "guzzlehttp/guzzle": "^7.8"
+    },
+    "require-dev": {
+        "phpunit/phpunit": "^9.5"
+    },
+    "autoload": {
+        "psr-4": {
+            "App\\": "app/"
+        }
+    },
+    "scripts": {
+    }
+}

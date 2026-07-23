@@ -1,0 +1,5 @@
+/vendor/
+.env
+storage/xmls/*
+!storage/xmls/.gitkeep
+composer.lock
