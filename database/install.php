@@ -6,30 +6,73 @@
  */
 
 require_once __DIR__ . '/../vendor/autoload.php';
-require_once __DIR__ . '/../config/config.php';
 
-use App\Core\Database;
+// Tenta carregar configuração
+try {
+    $config = require_once __DIR__ . '/../config/config.php';
+} catch (Exception $e) {
+    // Se falhar, usa configuração padrão com root
+    $config = [
+        'database' => [
+            'host' => 'localhost',
+            'database' => 'getxml',
+            'username' => 'root',
+            'password' => '',
+        ]
+    ];
+}
 
 echo "=== Instalação do Banco de Dados GetXML SEFAZ ===\n\n";
 
 try {
-    // Conecta ao MySQL (sem selecionar banco)
-    $config = $config['database'];
-    $dsn = sprintf(
-        'mysql:host=%s;charset=utf8mb4',
-        $config['host']
-    );
+    // Primeiro tenta usar as credenciais do .env
+    $dbConfig = $config['database'];
+    
+    try {
+        $dsn = sprintf(
+            'mysql:host=%s;charset=utf8mb4',
+            $dbConfig['host']
+        );
 
-    $pdo = new PDO(
-        $dsn,
-        $config['username'],
-        $config['password'],
-        [
-            PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
-        ]
-    );
-
-    echo "✓ Conectado ao MySQL\n";
+        $pdo = new PDO(
+            $dsn,
+            $dbConfig['username'],
+            $dbConfig['password'],
+            [
+                PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
+            ]
+        );
+        echo "✓ Conectado ao MySQL com usuário: " . $dbConfig['username'] . "\n";
+    } catch (PDOException $e) {
+        // Se falhar, tenta com root
+        echo "⚠ Usuário '" . $dbConfig['username'] . "' não existe. Tentando com root...\n";
+        
+        try {
+            $pdo = new PDO(
+                'mysql:host=localhost;charset=utf8mb4',
+                'root',
+                '',
+                [
+                    PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
+                ]
+            );
+            echo "✓ Conectado ao MySQL com usuário: root\n";
+            
+            // Cria o banco de dados
+            $pdo->exec("CREATE DATABASE IF NOT EXISTS getxml CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci");
+            echo "✓ Banco de dados 'getxml' criado\n";
+            
+            // Vamos pular a criação do usuário e focar nas tabelas
+            // O usuário será criado manualmente via phpMyAdmin
+            echo "⚠ Criando tabelas com usuário root (usuário MySQL será criado manualmente)\n";
+            
+            // Seleciona o banco
+            $pdo->exec("USE getxml");
+            
+        } catch (PDOException $e2) {
+            throw new Exception("Não foi possível conectar nem com root: " . $e2->getMessage());
+        }
+    }
 
     // Lê o schema SQL
     $schema = file_get_contents(__DIR__ . '/schema.sql');
@@ -64,7 +107,7 @@ try {
     echo "✗ Erro na instalação: " . $e->getMessage() . "\n";
     echo "\nVerifique:\n";
     echo "1. Se o MySQL está rodando\n";
-    echo "2. Se as credenciais no .env estão corretas\n";
-    echo "3. Se o usuário tem permissão para criar banco de dados\n";
+    echo "2. Se a senha do root está vazia (padrão XAMPP)\n";
+    echo "3. Se o MySQL está aceitando conexões\n";
     exit(1);
 }

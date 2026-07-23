@@ -13,13 +13,30 @@ class NotaFiscalModel
     {
         $this->config = $config;
         
-        try {
-            if ($config) {
-                $this->db = Database::getInstance($config['database']);
-            }
-        } catch (Exception $e) {
-            $this->db = null;
+        // Temporariamente usa JSON se não tiver banco
+        $this->dbFile = $storagePath . '/notas_fiscais.json';
+        $this->carregarNotas();
+    }
+
+    /**
+     * Carrega notas do arquivo JSON (modo sem banco)
+     */
+    private function carregarNotas()
+    {
+        if (file_exists($this->dbFile)) {
+            $conteudo = file_get_contents($this->dbFile);
+            $this->notas = json_decode($conteudo, true) ?? [];
+        } else {
+            $this->notas = [];
         }
+    }
+
+    /**
+     * Salva notas no arquivo JSON (modo sem banco)
+     */
+    private function salvarNotas()
+    {
+        file_put_contents($this->dbFile, json_encode($this->notas, JSON_PRETTY_PRINT));
     }
 
     /**
@@ -27,10 +44,19 @@ class NotaFiscalModel
      */
     public function adicionarNota($nota)
     {
-        if ($this->db === null) {
-            return false;
+        // Tenta usar MySQL se disponível, senão usa JSON
+        if ($this->config && $this->db) {
+            return $this->adicionarNotaMySQL($nota);
+        } else {
+            return $this->adicionarNotaJSON($nota);
         }
+    }
 
+    /**
+     * Adiciona nota usando MySQL
+     */
+    private function adicionarNotaMySQL($nota)
+    {
         try {
             // Verifica se nota já existe
             $existente = $this->db->selectOne(
@@ -65,14 +91,44 @@ class NotaFiscalModel
     }
 
     /**
+     * Adiciona nota usando JSON (fallback)
+     */
+    private function adicionarNotaJSON($nota)
+    {
+        $chave = $nota['chave'];
+        
+        // Verifica se nota já existe
+        if ($this->buscarNotaPorChave($chave)) {
+            return false;
+        }
+        
+        $nota['data_captura'] = date('Y-m-d H:i:s');
+        $nota['arquivo_xml'] = $nota['arquivo_xml'] ?? null;
+        
+        $this->notas[$chave] = $nota;
+        $this->salvarNotas();
+        
+        return true;
+    }
+
+    /**
      * Busca nota por chave
      */
     public function buscarNotaPorChave($chave, $usuarioId = null)
     {
-        if ($this->db === null) {
-            return null;
+        // Tenta usar MySQL se disponível, senão usa JSON
+        if ($this->config && $this->db) {
+            return $this->buscarNotaPorChaveMySQL($chave, $usuarioId);
+        } else {
+            return $this->buscarNotaPorChaveJSON($chave);
         }
+    }
 
+    /**
+     * Busca nota por chave usando MySQL
+     */
+    private function buscarNotaPorChaveMySQL($chave, $usuarioId = null)
+    {
         try {
             $query = "SELECT * FROM notas_fiscais WHERE chave = :chave";
             $params = ['chave' => $chave];
@@ -90,14 +146,31 @@ class NotaFiscalModel
     }
 
     /**
+     * Busca nota por chave usando JSON (fallback)
+     */
+    private function buscarNotaPorChaveJSON($chave)
+    {
+        return $this->notas[$chave] ?? null;
+    }
+
+    /**
      * Lista notas do usuário
      */
     public function listarNotas($usuarioId, $filtros = [])
     {
-        if ($this->db === null) {
-            return [];
+        // Tenta usar MySQL se disponível, senão usa JSON
+        if ($this->config && $this->db) {
+            return $this->listarNotasMySQL($usuarioId, $filtros);
+        } else {
+            return $this->listarNotasJSON($filtros);
         }
+    }
 
+    /**
+     * Lista notas usando MySQL
+     */
+    private function listarNotasMySQL($usuarioId, $filtros = [])
+    {
         try {
             $query = "SELECT * FROM notas_fiscais WHERE usuario_id = :usuario_id";
             $params = ['usuario_id' => $usuarioId];
@@ -129,14 +202,57 @@ class NotaFiscalModel
     }
 
     /**
+     * Lista notas usando JSON (fallback)
+     */
+    private function listarNotasJSON($filtros = [])
+    {
+        $notas = $this->notas;
+        
+        // Aplicar filtros
+        if (!empty($filtros['data_inicio'])) {
+            $notas = array_filter($notas, function($nota) use ($filtros) {
+                return strtotime($nota['data_emissao']) >= strtotime($filtros['data_inicio']);
+            });
+        }
+        
+        if (!empty($filtros['data_fim'])) {
+            $notas = array_filter($notas, function($nota) use ($filtros) {
+                return strtotime($nota['data_emissao']) <= strtotime($filtros['data_fim']);
+            });
+        }
+        
+        if (!empty($filtros['cnpj'])) {
+            $notas = array_filter($notas, function($nota) use ($filtros) {
+                return strpos($nota['cnpj_emitente'], $filtros['cnpj']) !== false;
+            });
+        }
+        
+        // Ordenar por data de emissão (decrescente)
+        usort($notas, function($a, $b) {
+            return strtotime($b['data_emissao']) - strtotime($a['data_emissao']);
+        });
+        
+        return array_values($notas);
+    }
+
+    /**
      * Remove uma nota
      */
     public function removerNota($chave, $usuarioId)
     {
-        if ($this->db === null) {
-            return false;
+        // Tenta usar MySQL se disponível, senão usa JSON
+        if ($this->config && $this->db) {
+            return $this->removerNotaMySQL($chave, $usuarioId);
+        } else {
+            return $this->removerNotaJSON($chave);
         }
+    }
 
+    /**
+     * Remove nota usando MySQL
+     */
+    private function removerNotaMySQL($chave, $usuarioId)
+    {
         try {
             // Primeiro obtém a nota para remover o arquivo
             $nota = $this->buscarNotaPorChave($chave, $usuarioId);
@@ -164,18 +280,41 @@ class NotaFiscalModel
     }
 
     /**
+     * Remove nota usando JSON (fallback)
+     */
+    private function removerNotaJSON($chave)
+    {
+        if (isset($this->notas[$chave])) {
+            // Remove arquivo XML se existir
+            if (!empty($this->notas[$chave]['arquivo_xml']) && file_exists($this->notas[$chave]['arquivo_xml'])) {
+                unlink($this->notas[$chave]['arquivo_xml']);
+            }
+            
+            unset($this->notas[$chave]);
+            $this->salvarNotas();
+            return true;
+        }
+        return false;
+    }
+
+    /**
      * Obtém estatísticas das notas do usuário
      */
     public function getEstatisticas($usuarioId)
     {
-        if ($this->db === null) {
-            return [
-                'total_notas' => 0,
-                'valor_total' => 0,
-                'valor_medio' => 0,
-            ];
+        // Tenta usar MySQL se disponível, senão usa JSON
+        if ($this->config && $this->db) {
+            return $this->getEstatisticasMySQL($usuarioId);
+        } else {
+            return $this->getEstatisticasJSON();
         }
+    }
 
+    /**
+     * Obtém estatísticas usando MySQL
+     */
+    private function getEstatisticasMySQL($usuarioId)
+    {
         try {
             $resultado = $this->db->selectOne(
                 "SELECT 
@@ -200,5 +339,20 @@ class NotaFiscalModel
                 'valor_medio' => 0,
             ];
         }
+    }
+
+    /**
+     * Obtém estatísticas usando JSON (fallback)
+     */
+    private function getEstatisticasJSON()
+    {
+        $total = count($this->notas);
+        $valorTotal = array_sum(array_column($this->notas, 'valor'));
+        
+        return [
+            'total_notas' => $total,
+            'valor_total' => $valorTotal,
+            'valor_medio' => $total > 0 ? $valorTotal / $total : 0,
+        ];
     }
 }

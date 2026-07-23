@@ -2,6 +2,8 @@
 
 namespace App\Core;
 
+use App\Core\Database;
+
 class Auth
 {
     private $db;
@@ -13,7 +15,6 @@ class Auth
         try {
             $this->db = Database::getInstance($config['database']);
         } catch (Exception $e) {
-            // Se não conseguir conectar, não inicializa
             $this->db = null;
         }
     }

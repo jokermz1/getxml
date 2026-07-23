@@ -40,19 +40,19 @@ class Database
         );
 
         $options = [
-            PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
-            PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
-            PDO::ATTR_EMULATE_PREPARES => false,
+            \PDO::ATTR_ERRMODE => \PDO::ERRMODE_EXCEPTION,
+            \PDO::ATTR_DEFAULT_FETCH_MODE => \PDO::FETCH_ASSOC,
+            \PDO::ATTR_EMULATE_PREPARES => false,
         ];
 
         try {
-            $this->connection = new PDO(
+            $this->connection = new \PDO(
                 $dsn,
                 $this->config['username'] ?? 'root',
                 $this->config['password'] ?? '',
                 $options
             );
-        } catch (PDOException $e) {
+        } catch (\PDOException $e) {
             throw new \Exception('Erro de conexão com o banco de dados: ' . $e->getMessage());
         }
     }
@@ -74,7 +74,7 @@ class Database
             $stmt = $this->connection->prepare($query);
             $stmt->execute($params);
             return $stmt->fetchAll();
-        } catch (PDOException $e) {
+        } catch (\PDOException $e) {
             throw new \Exception('Erro na query SELECT: ' . $e->getMessage());
         }
     }
@@ -88,7 +88,7 @@ class Database
             $stmt = $this->connection->prepare($query);
             $stmt->execute($params);
             return $stmt->fetch();
-        } catch (PDOException $e) {
+        } catch (\PDOException $e) {
             throw new \Exception('Erro na query SELECT: ' . $e->getMessage());
         }
     }
@@ -107,7 +107,7 @@ class Database
             $stmt->execute($data);
             
             return $this->connection->lastInsertId();
-        } catch (PDOException $e) {
+        } catch (\PDOException $e) {
             throw new \Exception('Erro na query INSERT: ' . $e->getMessage());
         }
     }
@@ -129,7 +129,7 @@ class Database
             $stmt->execute(array_merge($data, $whereParams));
             
             return $stmt->rowCount();
-        } catch (PDOException $e) {
+        } catch (\PDOException $e) {
             throw new \Exception('Erro na query UPDATE: ' . $e->getMessage());
         }
     }
@@ -145,7 +145,7 @@ class Database
             $stmt->execute($params);
             
             return $stmt->rowCount();
-        } catch (PDOException $e) {
+        } catch (\PDOException $e) {
             throw new \Exception('Erro na query DELETE: ' . $e->getMessage());
         }
     }
@@ -182,7 +182,7 @@ class Database
         try {
             $this->connection->query("SELECT 1");
             return true;
-        } catch (PDOException $e) {
+        } catch (\PDOException $e) {
             return false;
         }
     }

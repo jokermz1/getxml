@@ -34,7 +34,15 @@ class SefazController
      */
     public function home()
     {
-        $estatisticas = $this->notaFiscalModel->getEstatisticas();
+        if ($this->auth && $this->auth->check()) {
+            $estatisticas = $this->notaFiscalModel->getEstatisticas($this->auth->id());
+        } else {
+            $estatisticas = [
+                'total_notas' => 0,
+                'valor_total' => 0,
+                'valor_medio' => 0,
+            ];
+        }
         require_once __DIR__ . '/../Views/home.php';
     }
 
@@ -100,18 +108,23 @@ class SefazController
                 } else {
                     try {
                         // Salvar arquivo XML em diretório do usuário
-                        $usuarioId = $this->auth->id();
-                        $caminhoUsuario = $this->config['storage']['path'] . '/' . $usuarioId;
+                        $usuarioId = $this->auth ? $this->auth->id() : null;
+                        $caminhoUsuario = $this->config['storage']['path'];
                         
-                        if (!is_dir($caminhoUsuario)) {
-                            mkdir($caminhoUsuario, 0755, true);
+                        if ($usuarioId) {
+                            $caminhoUsuario .= '/' . $usuarioId;
+                            if (!is_dir($caminhoUsuario)) {
+                                mkdir($caminhoUsuario, 0755, true);
+                            }
                         }
                         
                         $caminhoXml = $this->sefazModel->salvarXml($nota, $caminhoUsuario);
                         
                         if ($caminhoXml) {
                             $nota['arquivo_xml'] = $caminhoXml;
-                            $nota['usuario_id'] = $usuarioId; // Adiciona ID do usuário
+                            if ($usuarioId) {
+                                $nota['usuario_id'] = $usuarioId; // Adiciona ID do usuário
+                            }
                             
                             // Salvar no banco de dados local
                             if ($this->notaFiscalModel->adicionarNota($nota)) {
@@ -163,7 +176,8 @@ class SefazController
             $filtros['cnpj'] = $_GET['filtro_cnpj'];
         }
 
-        $notas = $this->notaFiscalModel->listarNotas($filtros);
+        $usuarioId = $this->auth ? $this->auth->id() : null;
+        $notas = $this->notaFiscalModel->listarNotas($usuarioId, $filtros);
 
         require_once __DIR__ . '/../Views/listar.php';
     }
@@ -182,7 +196,8 @@ class SefazController
             if (empty($chave)) {
                 $erros[] = 'Chave da nota não informada';
             } else {
-                if ($this->notaFiscalModel->removerNota($chave)) {
+                $usuarioId = $this->auth ? $this->auth->id() : null;
+                if ($this->notaFiscalModel->removerNota($chave, $usuarioId)) {
                     $sucesso = 'Nota fiscal excluída com sucesso!';
                 } else {
                     $erros[] = 'Nota não encontrada';

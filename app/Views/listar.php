@@ -66,8 +66,8 @@
                     <td><?= htmlspecialchars($nota['cnpj_emitente']) ?></td>
                     <td><?= htmlspecialchars(date('d/m/Y H:i', strtotime($nota['data_captura']))) ?></td>
                     <td>
-                        <?php if (!empty($nota['arquivo_xml'])): ?>
-                            <a href="<?= htmlspecialchars($nota['arquivo_xml']) ?>" target="_blank" class="btn btn-primary" style="padding: 5px 10px; font-size: 12px; display: inline-block;">Ver XML</a>
+                        <?php if (!empty($nota['caminho_xml'])): ?>
+                            <a href="<?= htmlspecialchars($nota['caminho_xml']) ?>" target="_blank" class="btn btn-primary" style="padding: 5px 10px; font-size: 12px; display: inline-block;">Ver XML</a>
                         <?php endif; ?>
                         
                         <form method="POST" action="index.php?action=excluir" style="display: inline; margin-left: 5px;">

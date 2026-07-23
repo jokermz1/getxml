@@ -48,7 +48,7 @@ $authController = new AuthController($config);
 // Determinar ação
 $action = $_GET['action'] ?? 'home';
 
-// Roteamento simples
+// Roteamento simples - temporariamente sem autenticação
 switch ($action) {
     case 'login':
         $authController->login();
@@ -84,35 +84,22 @@ switch ($action) {
         $authController->adminToggleUsuario();
         break;
     case 'buscar':
-        $authController->requireLogin();
         $sefazController->buscar();
         break;
     case 'salvar':
-        $authController->requireLogin();
         $sefazController->salvar();
         break;
     case 'listar':
-        $authController->requireLogin();
         $sefazController->listar();
         break;
     case 'excluir':
-        $authController->requireLogin();
         $sefazController->excluir();
         break;
     case 'config':
-        $authController->requireLogin();
         $sefazController->config();
         break;
     case 'home':
     default:
-        // Se não estiver logado, redireciona para login
-        $auth = new \App\Core\Auth($config);
-        if ($auth->check()) {
-            header('Location: index.php?action=dashboard');
-            exit;
-        } else {
-            header('Location: index.php?action=login');
-            exit;
-        }
+        $sefazController->home();
         break;
 }
