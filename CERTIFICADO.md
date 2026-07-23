@@ -157,6 +157,45 @@ SEFAZ_SENHA_CERTIFICADO=SuaSenhaAqui
 - Registre quem usou o certificado
 - Revogue acessos quando necessário
 
+## 🆕 Duas Formas de Configuração
+
+Este sistema oferece **duas opções** para configurar o certificado digital:
+
+### Opção 1: Upload via Interface (Recomendado) ✅
+
+**Vantagens:**
+- ✅ Interface amigável e intuitiva
+- ✅ Cada usuário pode ter seu próprio certificado
+- ✅ Botão para mostrar/ocultar senha (👁️)
+- ✅ Gerenciamento fácil (ativar/desativar/remover)
+- ✅ Validação automática de formato e tamanho
+- ✅ Não precisa editar arquivos de configuração
+
+**Como usar:**
+1. Faça login no sistema
+2. Acesse "Certificados" no menu
+3. Faça upload do arquivo .pfx/.p12
+4. Informe a senha (com botão para mostrar/ocultar)
+5. Selecione a UF da SEFAZ
+6. Clique em "Enviar Certificado"
+
+### Opção 2: Configuração via .env
+
+**Quando usar:**
+- Para configuração global do sistema
+- Para ambientes de desenvolvimento
+- Quando não quiser usar upload via interface
+
+**Como usar:**
+1. Coloque o arquivo em local seguro
+2. Edite o arquivo .env:
+   ```env
+   SEFAZ_CERTIFICADO=C:\caminho\certificado.pfx
+   SEFAZ_SENHA_CERTIFICADO=SuaSenha
+   ```
+
+**Nota:** O sistema prioriza o certificado uploadado via interface. Se não houver certificado uploadado, usa o configurado no .env.
+
 ### 4. Renovação
 - Monitore a data de validade
 - Renove antes de expirar

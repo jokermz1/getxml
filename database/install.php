@@ -11,13 +11,13 @@ require_once __DIR__ . '/../vendor/autoload.php';
 try {
     $config = require_once __DIR__ . '/../config/config.php';
 } catch (Exception $e) {
-    // Se falhar, usa configuração padrão com root
+    // Se falhar, usa configuração padrão com getxml
     $config = [
         'database' => [
             'host' => 'localhost',
             'database' => 'getxml',
-            'username' => 'root',
-            'password' => '',
+            'username' => 'getxml',
+            'password' => 'gX7#kLp$2Qz!vN9@@@',
         ]
     ];
 }
@@ -44,33 +44,33 @@ try {
         );
         echo "✓ Conectado ao MySQL com usuário: " . $dbConfig['username'] . "\n";
     } catch (PDOException $e) {
-        // Se falhar, tenta com root
-        echo "⚠ Usuário '" . $dbConfig['username'] . "' não existe. Tentando com root...\n";
-        
+        // Se falhar, tenta com getxml
+        echo "⚠ Usuário '" . $dbConfig['username'] . "' não existe. Tentando com getxml...\n";
+
         try {
             $pdo = new PDO(
                 'mysql:host=localhost;charset=utf8mb4',
-                'root',
-                '',
+                'getxml',
+                'gX7#kLp$2Qz!vN9@@@',
                 [
                     PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
                 ]
             );
-            echo "✓ Conectado ao MySQL com usuário: root\n";
-            
+            echo "✓ Conectado ao MySQL com usuário: getxml\n";
+
             // Cria o banco de dados
             $pdo->exec("CREATE DATABASE IF NOT EXISTS getxml CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci");
             echo "✓ Banco de dados 'getxml' criado\n";
-            
+
             // Vamos pular a criação do usuário e focar nas tabelas
             // O usuário será criado manualmente via phpMyAdmin
-            echo "⚠ Criando tabelas com usuário root (usuário MySQL será criado manualmente)\n";
-            
+            echo "⚠ Criando tabelas com usuário getxml (usuário MySQL será criado manualmente)\n";
+
             // Seleciona o banco
             $pdo->exec("USE getxml");
-            
+
         } catch (PDOException $e2) {
-            throw new Exception("Não foi possível conectar nem com root: " . $e2->getMessage());
+            throw new Exception("Não foi possível conectar nem com getxml: " . $e2->getMessage());
         }
     }
 
@@ -107,7 +107,9 @@ try {
     echo "✗ Erro na instalação: " . $e->getMessage() . "\n";
     echo "\nVerifique:\n";
     echo "1. Se o MySQL está rodando\n";
-    echo "2. Se a senha do root está vazia (padrão XAMPP)\n";
-    echo "3. Se o MySQL está aceitando conexões\n";
+    echo "2. Se o usuário 'getxml' existe no MySQL\n";
+    echo "3. Se a senha do usuário 'getxml' está correta: gX7#kLp$2Qz!vN9@@@\n";
+    echo "4. Execute o script database/manipulacao_banco.sql para criar o usuário\n";
+    echo "5. Se o MySQL está aceitando conexões\n";
     exit(1);
 }

@@ -146,8 +146,10 @@ php test.php
 
 Abra o navegador e acesse:
 ```
-http://localhost/getxml/public/
+http://localhost/getxml/
 ```
+
+**Nota**: O sistema redireciona automaticamente para `/public/` via `.htaccess.
 
 ### 4. Configurar o Certificado Digital
 

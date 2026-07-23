@@ -11,27 +11,27 @@ Como o usuário MySQL ainda não existe, você precisa criar manualmente. Execut
 
 ```sql
 CREATE DATABASE IF NOT EXISTS getxml CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
-CREATE USER 'getxml'@'localhost' IDENTIFIED BY 'gX7#kLp$2Qz!vN9@';
+CREATE USER 'getxml'@'localhost' IDENTIFIED BY 'gX7#kLp$2Qz!vN9@@@';
 GRANT ALL PRIVILEGES ON getxml.* TO 'getxml'@'localhost';
 FLUSH PRIVILEGES;
 ```
 
 ### Opção 2: Via Linha de Comando
 ```bash
-mysql -u root -p
+mysql -u getxml -p
 ```
 
 Depois de fazer login, execute:
 ```sql
 CREATE DATABASE IF NOT EXISTS getxml CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
-CREATE USER 'getxml'@'localhost' IDENTIFIED BY 'gX7#kLp$2Qz!vN9@';
+CREATE USER 'getxml'@'localhost' IDENTIFIED BY 'gX7#kLp$2Qz!vN9@@@';
 GRANT ALL PRIVILEGES ON getxml.* TO 'getxml'@'localhost';
 FLUSH PRIVILEGES;
 ```
 
 ### Opção 3: Via MySQL Workbench
 1. Abra MySQL Workbench
-2. Conecte como root
+2. Conecte como root (ou outro usuário com privilégios)
 3. Execute o SQL acima
 
 ## 🚀 Após Criar o Usuário
@@ -48,10 +48,12 @@ Isso irá criar as tabelas e usuários padrão do sistema.
 
 Para verificar se funcionou, tente acessar:
 ```
-http://localhost/getxml/public/
+http://localhost/getxml/
 ```
 
 Você deve ver a página de login.
+
+**Nota**: O sistema redireciona automaticamente para `/public/` via `.htaccess.
 
 ## 🔐 Credenciais Padrão
 

@@ -60,8 +60,8 @@ Adicione as configurações do MySQL ao arquivo `.env`:
 ```env
 DB_HOST=localhost
 DB_DATABASE=getxml
-DB_USERNAME=root
-DB_PASSWORD=
+DB_USERNAME=getxml
+DB_PASSWORD=gX7#kLp$2Qz!vN9@@@
 ```
 
 ### 2. Criar o Banco de Dados
@@ -93,8 +93,10 @@ Após a instalação, você terá acesso a:
 ### 1. Acessar
 
 ```
-http://localhost/getxml/public/
+http://localhost/getxml/
 ```
+
+**Nota**: O sistema redireciona automaticamente para `/public/` via `.htaccess.
 
 ### 2. Fazer Login
 

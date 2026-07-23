@@ -18,12 +18,14 @@ if ($usarEnv) {
             'name' => $_ENV['APP_NAME'] ?? 'GetXML_SEFAZ',
             'env' => $_ENV['APP_ENV'] ?? 'production',
             'debug' => $_ENV['APP_DEBUG'] ?? false,
+            'url' => $_ENV['APP_URL'] ?? 'http://localhost/getxml/public',
+            'public_path' => $_ENV['APP_PUBLIC_PATH'] ?? '/public',
         ],
         'sefaz' => [
             'uf' => $_ENV['SEFAZ_UF'] ?? 'SP',
             'ambiente' => $_ENV['SEFAZ_AMBIENTE'] ?? '1',
-            'certificado' => $_ENV['SEFAZ_CERTIFICADO'] ?? '',
-            'senha_certificado' => $_ENV['SEFAZ_SENHA_CERTIFICADO'] ?? '',
+            'certificado' => $_ENV['SEFAZ_CERTIFICADO'] ?? null, // Opcional - usuário pode fazer upload
+            'senha_certificado' => $_ENV['SEFAZ_SENHA_CERTIFICADO'] ?? null, // Opcional - usuário pode fazer upload
         ],
         'cnpj' => [
             'cnpj' => $_ENV['CNPJ_CNPJ'] ?? '',
@@ -39,8 +41,8 @@ if ($usarEnv) {
         'database' => [
             'host' => $_ENV['DB_HOST'] ?? 'localhost',
             'database' => $_ENV['DB_DATABASE'] ?? 'getxml',
-            'username' => $_ENV['DB_USERNAME'] ?? 'root',
-            'password' => $_ENV['DB_PASSWORD'] ?? '',
+            'username' => $_ENV['DB_USERNAME'] ?? 'getxml',
+            'password' => $_ENV['DB_PASSWORD'] ?? 'gX7#kLp$2Qz!vN9@@@',
         ],
     ];
 } else {
@@ -50,6 +52,8 @@ if ($usarEnv) {
             'name' => 'GetXML SEFAZ',
             'env' => 'development',
             'debug' => true,
+            'url' => 'http://localhost/getxml/public',
+            'public_path' => '/public',
         ],
         'sefaz' => [
             'uf' => 'SP',
@@ -71,8 +75,8 @@ if ($usarEnv) {
         'database' => [
             'host' => 'localhost',
             'database' => 'getxml',
-            'username' => 'root',
-            'password' => '',
+            'username' => 'getxml',
+            'password' => 'gX7#kLp$2Qz!vN9@@@',
         ],
     ];
 }

@@ -18,7 +18,12 @@
     <?php endif; ?>
     
     <div class="alert alert-info">
-        <strong>Atenção:</strong> As configurações são feitas no arquivo <code>.env</code> na raiz do projeto.
+        <strong>Nota:</strong> O certificado digital pode ser configurado de duas formas:
+        <ul style="margin: 10px 0 0 20px;">
+            <li><strong>Upload via interface</strong> (Recomendado): Acesse "Certificados" no menu</li>
+            <li><strong>Arquivo .env</strong>: Configure as variáveis SEFAZ_CERTIFICADO e SEFAZ_SENHA_CERTIFICADO</li>
+        </ul>
+        O sistema prioriza o certificado uploadado via interface.
     </div>
     
     <div class="card" style="background-color: #f8f9fa; margin-top: 20px;">
@@ -61,11 +66,13 @@
             <li>Edite o arquivo <code>.env</code> na raiz do projeto</li>
             <li>Configure o CNPJ que deseja consultar em <code>CNPJ_CNPJ</code></li>
             <li>Configure a Inscrição Estadual em <code>CNPJ_IE</code></li>
-            <li>Configure o caminho do certificado digital A1 em <code>SEFAZ_CERTIFICADO</code></li>
-            <li>Configure a senha do certificado em <code>SEFAZ_SENHA_CERTIFICADO</code></li>
+            <li><strong>Certificado Digital (opcional)</strong>: Faça upload via interface "Certificados" ou configure em <code>SEFAZ_CERTIFICADO</code></li>
             <li>Configure a UF em <code>SEFAZ_UF</code></li>
             <li>Configure o ambiente (1=produção, 2=homologação) em <code>SEFAZ_AMBIENTE</code></li>
         </ol>
+        <div class="alert alert-success" style="margin-top: 15px;">
+            <strong>Dica:</strong> O upload de certificado via interface é mais simples e seguro. Cada usuário pode ter seu próprio certificado!
+        </div>
     </div>
     
     <div style="margin-top: 20px;">

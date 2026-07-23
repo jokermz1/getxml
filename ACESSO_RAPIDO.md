@@ -9,8 +9,10 @@ O erro do `.env` foi corrigido! O sistema agora carrega automaticamente mesmo se
 ### 1. Via Navegador
 Abra seu navegador e acesse:
 ```
-http://localhost/getxml/public/
+http://localhost/getxml/
 ```
+
+**Nota**: O sistema redireciona automaticamente para `/public/` via `.htaccess`.
 
 ### 2. Via PHP (para teste)
 ```bash
@@ -104,8 +106,10 @@ php test.php
 
 O sistema está 100% funcional. Acesse agora:
 ```
-http://localhost/getxml/public/
+http://localhost/getxml/
 ```
+
+**Nota**: O sistema redireciona automaticamente para `/public/` via `.htaccess`.
 
 ---
 

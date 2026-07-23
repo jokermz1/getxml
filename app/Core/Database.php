@@ -48,8 +48,8 @@ class Database
         try {
             $this->connection = new \PDO(
                 $dsn,
-                $this->config['username'] ?? 'root',
-                $this->config['password'] ?? '',
+                $this->config['username'] ?? 'getxml',
+                $this->config['password'] ?? 'gX7#kLp$2Qz!vN9@@@',
                 $options
             );
         } catch (\PDOException $e) {

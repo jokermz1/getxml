@@ -45,6 +45,20 @@ APP_DEBUG=true   # Mostra erros detalhados (desenvolvimento)
 APP_DEBUG=false  # Esconde erros (produção)
 ```
 
+### 4. APP_URL
+URL base do sistema:
+```env
+APP_URL=http://localhost/getxml/public
+```
+
+### 5. APP_PUBLIC_PATH
+Caminho da pasta pública:
+```env
+APP_PUBLIC_PATH=/public
+```
+
+**Nota**: O sistema usa `.htaccess` para redirecionar automaticamente para `/public/`. Não é necessário adicionar `/public` na URL manualmente.
+
 ### 4. SEFAZ_UF
 Estado da SEFAZ:
 ```env
@@ -99,6 +113,17 @@ Caminho para armazenamento dos XMLs:
 ```env
 STORAGE_PATH=storage/xmls
 ```
+
+### 12. Configurações do Banco de Dados
+Credenciais do MySQL:
+```env
+DB_HOST=localhost
+DB_DATABASE=getxml
+DB_USERNAME=getxml
+DB_PASSWORD=gX7#kLp$2Qz!vN9@@@
+```
+
+⚠️ **IMPORTANTE**: Não use o usuário root em produção. Crie um usuário dedicado como mostrado acima.
 
 ## Comandos para Configurar
 
@@ -167,6 +192,10 @@ CNPJ_IE=123456789
 DATA_INICIO=2024-01-01
 DATA_FIM=2024-12-31
 STORAGE_PATH=storage/xmls
+DB_HOST=localhost
+DB_DATABASE=getxml
+DB_USERNAME=getxml
+DB_PASSWORD=gX7#kLp$2Qz!vN9@@@
 ```
 
 Após configurar, acesse: `http://localhost/getxml/public/`
