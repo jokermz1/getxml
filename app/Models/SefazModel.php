@@ -4,21 +4,21 @@ namespace App\Models;
 
 use GuzzleHttp\Client;
 use GuzzleHttp\Exception\RequestException;
-use App\Helpers\XmlSigner;
-
 class SefazModel
 {
     private $config;
     private $client;
     private $certificado;
     private $senhaCertificado;
-    private $xmlSigner;
+    private $sefazUf;
+    private $certificadoOrigem;
+    private $arquivosTemporarios = [];
 
     public function __construct(array $config, $certificadoUsuario = null)
     {
         $this->config = $config;
 
-        // PRIORIDADE: 1. Certificado do usuário uploadado, 2. Certificado do .env
+        // PRIORIDADE: 1. Certificado do usuÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¡rio uploadado, 2. Certificado do .env
         if ($certificadoUsuario && !empty($certificadoUsuario['caminho_arquivo'])) {
             $this->certificado = $certificadoUsuario['caminho_arquivo'];
             $this->senhaCertificado = $certificadoUsuario['senha_certificado'];
@@ -38,43 +38,33 @@ class SefazModel
 
         $this->client = new Client([
             'timeout' => 30,
-            'verify' => false,
+            'verify' => !empty($config['sefaz']['ca_bundle']) ? $config['sefaz']['ca_bundle'] : true,
         ]);
 
-        // Inicializar assinador XML se tiver certificado
-        if ($this->certificado && $this->senhaCertificado) {
-            try {
-                $this->xmlSigner = new XmlSigner($this->certificado, $this->senhaCertificado);
-            } catch (\Exception $e) {
-                // Se falhar, continuar sem assinador (modo compatibilidade)
-                error_log('Aviso: Não foi possível inicializar assinador XML: ' . $e->getMessage());
-                $this->xmlSigner = null;
-            }
-        }
     }
 
     /**
-     * Busca notas fiscais por período (usando NSU)
-     * Nota: O serviço SEFAZ usa NSU, não período direto
+     * Busca notas fiscais por perÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â­odo (usando NSU)
+     * Nota: O serviÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â§o SEFAZ usa NSU, nÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â£o perÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â­odo direto
      */
     public function buscarNotasPorPeriodo($dataInicio, $dataFim)
     {
         $cnpj = $this->config['cnpj']['cnpj'];
-        $uf = $this->config['sefaz']['uf'];
+        $uf = $this->sefazUf;
         $ambiente = $this->config['sefaz']['ambiente'];
 
         $notas = [];
         $ultNSU = 0;
         $maxNSU = 0;
         $continuar = true;
-        $maxIteracoes = 100; // Limite de segurança
+        $maxIteracoes = 100; // Limite de seguranÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â§a
         $iteracao = 0;
 
-        // URLs dos serviços SEFAZ por estado
+        // URLs dos serviÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â§os SEFAZ por estado
         $urls = $this->getUrlsSefaz($uf, $ambiente);
 
         try {
-            // Implementação correta com paginação por NSU
+            // ImplementaÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â§ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â£o correta com paginaÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â§ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â£o por NSU
             while ($continuar && $iteracao < $maxIteracoes) {
                 $iteracao++;
 
@@ -89,12 +79,13 @@ class SefazModel
 
                 if ($response) {
                     $resultado = $this->processarResposta($response);
+                    $ultNSUAnterior = $ultNSU;
 
                     if (!empty($resultado['notas'])) {
                         $notas = array_merge($notas, $resultado['notas']);
                     }
 
-                    // Atualizar NSU para próxima página
+                    // Atualizar NSU para prÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â³xima pÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¡gina
                     if (isset($resultado['ultNSU'])) {
                         $ultNSU = $resultado['ultNSU'];
                     }
@@ -103,14 +94,14 @@ class SefazModel
                         $maxNSU = $resultado['maxNSU'];
                     }
 
-                    // Continuar se houver mais documentos
-                    $continuar = ($ultNSU < $maxNSU) && !empty($resultado['notas']);
+                    // Continuar enquanto houver NSU para processar e houver progresso
+                    $continuar = ($ultNSU < $maxNSU) && ($ultNSU !== $ultNSUAnterior);
                 } else {
                     $continuar = false;
                 }
             }
 
-            // Filtrar por período se necessário
+            // Filtrar por perÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â­odo se necessÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¡rio
             if ($dataInicio && $dataFim) {
                 $notas = $this->filtrarPorPeriodo($notas, $dataInicio, $dataFim);
             }
@@ -128,7 +119,7 @@ class SefazModel
     public function buscarNotaPorChave($chave)
     {
         $cnpj = $this->config['cnpj']['cnpj'];
-        $uf = $this->config['sefaz']['uf'];
+        $uf = $this->sefazUf;
         $ambiente = $this->config['sefaz']['ambiente'];
 
         $urls = $this->getUrlsSefaz($uf, $ambiente);
@@ -137,7 +128,7 @@ class SefazModel
             $response = $this->consultarNFeDistribuicao(
                 $urls['nfe_distribuicao'],
                 $cnpj,
-                $chave, // usar chave como parâmetro
+                $chave, // usar chave como parÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢metro
                 null,
                 null,
                 'consChNFe'
@@ -156,12 +147,12 @@ class SefazModel
     }
 
     /**
-     * Busca nota fiscal por NSU específico
+     * Busca nota fiscal por NSU especÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â­fico
      */
     public function buscarNotaPorNSU($nsu)
     {
         $cnpj = $this->config['cnpj']['cnpj'];
-        $uf = $this->config['sefaz']['uf'];
+        $uf = $this->sefazUf;
         $ambiente = $this->config['sefaz']['ambiente'];
 
         $urls = $this->getUrlsSefaz($uf, $ambiente);
@@ -189,92 +180,198 @@ class SefazModel
     }
 
     /**
-     * Consulta serviço de distribuição de NFe
+     * Consulta servico de distribuicao de NFe
      */
     private function consultarNFeDistribuicao($url, $cnpj, $param1 = null, $param2 = null, $ultNSU = 0, $tipoConsulta = 'distNSU')
     {
-        // Construir o XML de consulta
         $xmlConsulta = $this->buildXmlConsulta($cnpj, $param1, $param2, $ultNSU, $tipoConsulta);
+        $soapEnvelope = $this->montarEnvelopeSoap($xmlConsulta);
 
         try {
-            $response = $this->client->post($url, [
+            $options = [
                 'headers' => [
-                    'Content-Type' => 'application/xml',
+                    'Content-Type' => 'application/soap+xml; charset=utf-8',
+                    'Accept' => 'application/soap+xml, text/xml',
                     'SOAPAction' => 'http://www.portalfiscal.inf.br/nfe/wsdl/NFeDistribuicaoDFe/nfeDistDFeInteresse',
                 ],
-                'body' => $xmlConsulta,
-                'cert' => $this->certificado,
-                'ssl_key' => [$this->certificado, $this->senhaCertificado],
-            ]);
+                'body' => $soapEnvelope,
+            ];
+
+            $opcoesCertificado = $this->obterOpcoesCertificado();
+            if (!empty($opcoesCertificado)) {
+                $options = array_merge($options, $opcoesCertificado);
+            }
+
+            $response = $this->client->post($url, $options);
 
             return $response->getBody()->getContents();
-
         } catch (RequestException $e) {
             if ($e->hasResponse()) {
                 return $e->getResponse()->getBody()->getContents();
             }
+
             throw $e;
+        } finally {
+            $this->limparArquivosTemporarios();
         }
     }
 
     /**
-     * Constrói XML de consulta para serviço de distribuição
+     * Construi XML de consulta para servico de distribuicao
      */
     private function buildXmlConsulta($cnpj, $dataInicio = null, $dataFim = null, $ultNSU = 0, $tipoConsulta = 'distNSU')
     {
         $ns = 'http://www.portalfiscal.inf.br/nfe';
-
-        // Determinar se é CNPJ ou CPF
         $documento = $this->limparDocumento($cnpj);
         $tipoDoc = strlen($documento) == 11 ? 'CPF' : 'CNPJ';
+        $codigoUf = $this->getCodigoUF($this->sefazUf);
+        $ambiente = (string) $this->config['sefaz']['ambiente'];
+        $xml = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<distDFeInt xmlns=\"{$ns}\" versao=\"1.01\">\n    <tpAmb>{$ambiente}</tpAmb>\n    <cUFAutor>{$codigoUf}</cUFAutor>\n    <{$tipoDoc}>{$documento}</{$tipoDoc}>";
 
-        // XML base conforme leiaute SEFAZ
-        $xml = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>
-<distDFeInt xmlns=\"{$ns}\" versao=\"1.01\">
-    <tpAmb>{$this->config['sefaz']['ambiente']}</tpAmb>
-    <cUFAutor>{$this->getCodigoUF($this->config['sefaz']['uf'])}</cUFAutor>
-    <{$tipoDoc}>{$documento}</{$tipoDoc}>";
-
-        // Adicionar tipo de consulta
         switch ($tipoConsulta) {
             case 'distNSU':
-                $xml .= "
-    <distNSU>
-        <ultNSU>{$ultNSU}</ultNSU>
-    </distNSU>";
+                $xml .= "\n    <distNSU>\n        <ultNSU>{$this->normalizarNsu($ultNSU)}</ultNSU>\n    </distNSU>";
                 break;
 
             case 'consNSU':
-                $xml .= "
-    <consNSU>
-        <NSU>{$ultNSU}</NSU>
-    </consNSU>";
+                $xml .= "\n    <consNSU>\n        <NSU>{$this->normalizarNsu($ultNSU)}</NSU>\n    </consNSU>";
                 break;
 
             case 'consChNFe':
-                // Para consulta por chave, usar o parâmetro como chave
-                $chave = $this->limparDocumento($dataInicio); // reutilizar parâmetro
-                $xml .= "
-    <consChNFe>
-        <chNFe>{$chave}</chNFe>
-    </consChNFe>";
+                $chave = $this->limparDocumento($param1 ?? $dataInicio);
+                $xml .= "\n    <consChNFe>\n        <chNFe>{$chave}</chNFe>\n    </consChNFe>";
                 break;
         }
 
-        $xml .= "
-</distDFeInt>";
+        $xml .= "\n</distDFeInt>";
 
-        // Assinar XML se tiver assinador disponível
-        if ($this->xmlSigner) {
-            try {
-                $xml = $this->xmlSigner->assinarXml($xml);
-            } catch (\Exception $e) {
-                // Se falhar assinatura, continuar sem assinatura (modo compatibilidade)
-                error_log('Aviso: Não foi possível assinar XML: ' . $e->getMessage());
+        return $xml;
+    }
+
+    /**
+     * Monta envelope SOAP 1.2 para o pedido
+     */
+    private function montarEnvelopeSoap($xmlConsulta)
+    {
+        $codigoUf = $this->getCodigoUF($this->sefazUf);
+
+        return '<?xml version="1.0" encoding="utf-8"?>'
+            . '<soap12:Envelope xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:soap12="http://www.w3.org/2003/05/soap-envelope">'
+            . '<soap12:Header>'
+            . '<nfeCabecMsg xmlns="http://www.portalfiscal.inf.br/nfe/wsdl/NFeDistribuicaoDFe">'
+            . '<cUF>' . $codigoUf . '</cUF>'
+            . '<versaoDados>1.01</versaoDados>'
+            . '</nfeCabecMsg>'
+            . '</soap12:Header>'
+            . '<soap12:Body>'
+            . '<nfeDistDFeInteresse xmlns="http://www.portalfiscal.inf.br/nfe/wsdl/NFeDistribuicaoDFe">'
+            . '<nfeDadosMsg xmlns="http://www.portalfiscal.inf.br/nfe/wsdl/NFeDistribuicaoDFe">'
+            . $xmlConsulta
+            . '</nfeDadosMsg>'
+            . '</nfeDistDFeInteresse>'
+            . '</soap12:Body>'
+            . '</soap12:Envelope>';
+    }
+
+    /**
+     * Prepara certificado PFX/P12 para uso no TLS do cliente HTTP
+     */
+    private function obterOpcoesCertificado()
+    {
+        if (empty($this->certificado) || empty($this->senhaCertificado)) {
+            return [];
+        }
+
+        if (!file_exists($this->certificado)) {
+            throw new \Exception('Arquivo de certificado nÃƒÂ£o encontrado: ' . $this->certificado);
+        }
+
+        $conteudo = file_get_contents($this->certificado);
+        if ($conteudo === false) {
+            throw new \Exception('NÃƒÂ£o foi possÃƒÂ­vel ler o arquivo de certificado.');
+        }
+
+        if (!openssl_pkcs12_read($conteudo, $certs, $this->senhaCertificado)) {
+            throw new \Exception('NÃƒÂ£o foi possÃƒÂ­vel abrir o certificado. Verifique a senha.');
+        }
+
+        $diretorioTemp = sys_get_temp_dir() . DIRECTORY_SEPARATOR . 'getxml_sefaz';
+        if (!is_dir($diretorioTemp) && !mkdir($diretorioTemp, 0700, true) && !is_dir($diretorioTemp)) {
+            throw new \Exception('NÃƒÂ£o foi possÃƒÂ­vel criar diretÃƒÂ³rio temporÃƒÂ¡rio para o certificado.');
+        }
+
+        $identificador = uniqid('tls_', true);
+        $caminhoCert = $diretorioTemp . DIRECTORY_SEPARATOR . $identificador . '.crt.pem';
+        $caminhoKey = $diretorioTemp . DIRECTORY_SEPARATOR . $identificador . '.key.pem';
+
+        if (file_put_contents($caminhoCert, $certs['cert']) === false || file_put_contents($caminhoKey, $certs['pkey']) === false) {
+            throw new \Exception('NÃƒÂ£o foi possÃƒÂ­vel preparar os arquivos PEM do certificado.');
+        }
+
+        $this->arquivosTemporarios[] = $caminhoCert;
+        $this->arquivosTemporarios[] = $caminhoKey;
+
+        return [
+            'cert' => $caminhoCert,
+            'ssl_key' => $caminhoKey,
+        ];
+    }
+
+    /**
+     * Remove arquivos temporarios do certificado
+     */
+    private function limparArquivosTemporarios()
+    {
+        foreach ($this->arquivosTemporarios as $arquivo) {
+            if (is_file($arquivo)) {
+                @unlink($arquivo);
             }
         }
 
-        return $xml;
+        $this->arquivosTemporarios = [];
+    }
+
+    /**
+     * Descompacta o conteÃƒÂºdo base64 do docZip
+     */
+    private function descompactarDocZip($conteudo)
+    {
+        $binario = base64_decode(trim((string) $conteudo), true);
+        if ($binario === false) {
+            return null;
+        }
+
+        $primeiroCaracter = ltrim($binario);
+        if ($primeiroCaracter !== '' && $primeiroCaracter[0] === '<') {
+            return null;
+        }
+
+        $candidatos = [];
+        if (function_exists('gzdecode')) {
+            $candidatos[] = @gzdecode($binario);
+        }
+        if (function_exists('gzuncompress')) {
+            $candidatos[] = @gzuncompress($binario);
+        }
+        if (function_exists('gzinflate')) {
+            $candidatos[] = @gzinflate($binario);
+        }
+
+        foreach ($candidatos as $xml) {
+            if ($xml !== false && $xml !== null) {
+                return $xml;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * Normaliza NSU para 15 digitos
+     */
+    private function normalizarNsu($nsu)
+    {
+        return str_pad((string) $nsu, 15, '0', STR_PAD_LEFT);
     }
 
     /**
@@ -284,35 +381,40 @@ class SefazModel
     {
         $resultado = [
             'notas' => [],
-            'ultNSU' => 0,
-            'maxNSU' => 0,
+            'ultNSU' => '000000000000000',
+            'maxNSU' => '000000000000000',
             'resumos' => [],
             'eventos' => []
         ];
 
         try {
             $xml = simplexml_load_string($xmlResposta);
+            if (!$xml) {
+                throw new \Exception('Resposta XML invÃƒÂ¡lida.');
+            }
+
             $xml->registerXPathNamespace('nfe', 'http://www.portalfiscal.inf.br/nfe');
 
-            // Extrair informações de controle NSU
             $ultNSU = $xml->xpath('//nfe:ultNSU');
             if (!empty($ultNSU)) {
-                $resultado['ultNSU'] = (int)$ultNSU[0];
+                $resultado['ultNSU'] = $this->normalizarNsu((string) $ultNSU[0]);
             }
 
             $maxNSU = $xml->xpath('//nfe:maxNSU');
             if (!empty($maxNSU)) {
-                $resultado['maxNSU'] = (int)$maxNSU[0];
+                $resultado['maxNSU'] = $this->normalizarNsu((string) $maxNSU[0]);
             }
 
-            // Extrair documentos da resposta (docZip)
             $docs = $xml->xpath('//nfe:docZip');
             foreach ($docs as $doc) {
-                $conteudo = base64_decode((string)$doc);
-                $notaXml = simplexml_load_string($conteudo);
+                $conteudo = $this->descompactarDocZip((string) $doc);
+                if ($conteudo === null) {
+                    continue;
+                }
 
+                $notaXml = simplexml_load_string($conteudo);
                 if ($notaXml) {
-                    $schema = (string)$doc['schema'];
+                    $schema = (string) $doc['schema'];
                     $nota = $this->extrairDadosNota($notaXml, $schema, $conteudo);
                     if ($nota) {
                         $resultado['notas'][] = $nota;
@@ -320,18 +422,15 @@ class SefazModel
                 }
             }
 
-            // Extrair resumos de NF-e (resNFe)
             $resumos = $xml->xpath('//nfe:resNFe');
             foreach ($resumos as $resumo) {
                 $resultado['resumos'][] = $this->extrairDadosResumo($resumo);
             }
 
-            // Extrair eventos (resEvento)
             $eventos = $xml->xpath('//nfe:resEvento');
             foreach ($eventos as $evento) {
                 $resultado['eventos'][] = $this->extrairDadosEvento($evento);
             }
-
         } catch (\Exception $e) {
             throw new \Exception('Erro ao processar resposta XML: ' . $e->getMessage());
         }
@@ -345,44 +444,114 @@ class SefazModel
     private function extrairDadosNota($notaXml, $schema, $conteudo)
     {
         try {
-            // Verificar se é NF-e
-            if (isset($notaXml->infNFe)) {
-                $chave = (string)$notaXml->infNFe['Id'];
-                $chave = str_replace('NFe', '', $chave);
+            $raiz = $notaXml->getName();
+
+            $resumoNodes = $notaXml->xpath('//*[local-name()="resNFe"]');
+            if (!empty($resumoNodes)) {
+                return $this->extrairDadosResumo($resumoNodes[0]);
+            }
+
+            $eventoResumoNodes = $notaXml->xpath('//*[local-name()="resEvento"]');
+            if (!empty($eventoResumoNodes)) {
+                return $this->extrairDadosEvento($eventoResumoNodes[0]);
+            }
+
+            $infNFeNodes = $notaXml->xpath('//*[local-name()="infNFe"]');
+            if (!empty($infNFeNodes)) {
+                $infNFe = $infNFeNodes[0];
+                $chave = str_replace('NFe', '', (string) $infNFe['Id']);
 
                 return [
                     'chave' => $chave,
                     'xml' => $conteudo,
                     'schema' => $schema,
-                    'numero' => (string)$notaXml->infNFe->ide->nNF,
-                    'serie' => (string)$notaXml->infNFe->ide->serie,
-                    'data_emissao' => (string)$notaXml->infNFe->ide->dhEmi,
-                    'valor' => (string)$notaXml->infNFe->total->ICMSTot->vNF,
-                    'cnpj_emitente' => (string)$notaXml->infNFe->emit->CNPJ,
-                    'nome_emitente' => (string)$notaXml->infNFe->emit->xNome,
+                    'numero' => (string) $infNFe->ide->nNF,
+                    'serie' => (string) $infNFe->ide->serie,
+                    'data_emissao' => (string) $infNFe->ide->dhEmi,
+                    'valor' => (string) $infNFe->total->ICMSTot->vNF,
+                    'cnpj_emitente' => (string) $infNFe->emit->CNPJ,
+                    'nome_emitente' => (string) $infNFe->emit->xNome,
                     'tipo' => 'NFe'
                 ];
             }
 
-            // Verificar se é cancelamento
-            if (isset($notaXml->infCanc)) {
-                return [
-                    'tipo' => 'CancNFe',
-                    'chave' => (string)$notaXml->infCanc->chNFe,
-                    'xml' => $conteudo,
-                    'schema' => $schema
-                ];
+            if ($raiz === 'procEventoNFe') {
+                $infEventoNodes = $notaXml->xpath('//*[local-name()="infEvento"]');
+                if (!empty($infEventoNodes)) {
+                    $infEvento = $infEventoNodes[0];
+                    return [
+                        'tipo' => 'Evento',
+                        'chave' => (string) $infEvento->chNFe,
+                        'tpEvento' => (string) $infEvento->tpEvento,
+                        'data_emissao' => (string) $infEvento->dhEvento,
+                        'xml' => $conteudo,
+                        'schema' => $schema
+                    ];
+                }
             }
 
-            // Verificar se é evento
-            if (isset($notaXml->infEvento)) {
-                return [
-                    'tipo' => 'Evento',
-                    'chave' => (string)$notaXml->infEvento->chNFe,
-                    'tpEvento' => (string)$notaXml->infEvento->tpEvento,
-                    'xml' => $conteudo,
-                    'schema' => $schema
-                ];
+            if ($raiz === 'NFe') {
+                $infNFeNodes = $notaXml->xpath('//*[local-name()="infNFe"]');
+                if (!empty($infNFeNodes)) {
+                    $infNFe = $infNFeNodes[0];
+                    $chave = str_replace('NFe', '', (string) $infNFe['Id']);
+
+                    return [
+                        'chave' => $chave,
+                        'xml' => $conteudo,
+                        'schema' => $schema,
+                        'numero' => (string) $infNFe->ide->nNF,
+                        'serie' => (string) $infNFe->ide->serie,
+                        'data_emissao' => (string) $infNFe->ide->dhEmi,
+                        'valor' => (string) $infNFe->total->ICMSTot->vNF,
+                        'cnpj_emitente' => (string) $infNFe->emit->CNPJ,
+                        'nome_emitente' => (string) $infNFe->emit->xNome,
+                        'tipo' => 'NFe'
+                    ];
+                }
+            }
+
+            if ($raiz === 'procEventoNFe' || $raiz === 'evento' || $raiz === 'procEvento') {
+                $infEventoNodes = $notaXml->xpath('//*[local-name()="infEvento"]');
+                if (!empty($infEventoNodes)) {
+                    $infEvento = $infEventoNodes[0];
+                    return [
+                        'tipo' => 'Evento',
+                        'chave' => (string) $infEvento->chNFe,
+                        'tpEvento' => (string) $infEvento->tpEvento,
+                        'data_emissao' => (string) $infEvento->dhEvento,
+                        'xml' => $conteudo,
+                        'schema' => $schema
+                    ];
+                }
+            }
+
+            if ($raiz === 'procNFe') {
+                $infNFeNodes = $notaXml->xpath('//*[local-name()="infNFe"]');
+                if (!empty($infNFeNodes)) {
+                    $infNFe = $infNFeNodes[0];
+                    $chave = str_replace('NFe', '', (string) $infNFe['Id']);
+
+                    return [
+                        'chave' => $chave,
+                        'xml' => $conteudo,
+                        'schema' => $schema,
+                        'numero' => (string) $infNFe->ide->nNF,
+                        'serie' => (string) $infNFe->ide->serie,
+                        'data_emissao' => (string) $infNFe->ide->dhEmi,
+                        'valor' => (string) $infNFe->total->ICMSTot->vNF,
+                        'cnpj_emitente' => (string) $infNFe->emit->CNPJ,
+                        'nome_emitente' => (string) $infNFe->emit->xNome,
+                        'tipo' => 'NFe'
+                    ];
+                }
+            }
+
+            if ($raiz === 'NFe' || $raiz === 'procNFe') {
+                $resumoNodes = $notaXml->xpath('//*[local-name()="resNFe"]');
+                if (!empty($resumoNodes)) {
+                    return $this->extrairDadosResumo($resumoNodes[0]);
+                }
             }
 
         } catch (\Exception $e) {
@@ -398,12 +567,13 @@ class SefazModel
     private function extrairDadosResumo($resumo)
     {
         return [
-            'chave' => (string)$resumo->chNFe,
-            'nProt' => (string)$resumo->nProt,
-            'xNome' => (string)$resumo->xNome,
-            'CNPJ' => (string)$resumo->CNPJ,
-            'dhEmi' => (string)$resumo->dhEmi,
-            'vNF' => (string)$resumo->vNF,
+            'chave' => (string) $resumo->chNFe,
+            'nProt' => (string) $resumo->nProt,
+            'xNome' => (string) $resumo->xNome,
+            'CNPJ' => (string) $resumo->CNPJ,
+            'dhEmi' => (string) $resumo->dhEmi,
+            'data_emissao' => (string) $resumo->dhEmi,
+            'vNF' => (string) $resumo->vNF,
             'tipo' => 'resNFe'
         ];
     }
@@ -414,10 +584,11 @@ class SefazModel
     private function extrairDadosEvento($evento)
     {
         return [
-            'chave' => (string)$evento->chNFe,
-            'tpEvento' => (string)$evento->tpEvento,
-            'nSeqEvento' => (string)$evento->nSeqEvento,
-            'dhEvento' => (string)$evento->dhEvento,
+            'chave' => (string) $evento->chNFe,
+            'tpEvento' => (string) $evento->tpEvento,
+            'nSeqEvento' => (string) $evento->nSeqEvento,
+            'dhEvento' => (string) $evento->dhEvento,
+            'data_emissao' => (string) $evento->dhEvento,
             'tipo' => 'resEvento'
         ];
     }
@@ -442,7 +613,7 @@ class SefazModel
     }
 
     /**
-     * Obtém URLs dos serviços SEFAZ por estado
+     * ObtÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â©m URLs dos serviÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â§os SEFAZ por estado
      */
     private function getUrlsSefaz($uf, $ambiente)
     {
@@ -594,7 +765,7 @@ class SefazModel
             ],
         ];
 
-        // SVRS (Secretaria Virtual do RS) - usada por vários estados
+        // SVRS (Secretaria Virtual do RS) - usada por vÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¡rios estados
         $urls['SVRS'] = [
             'nfe_distribuicao' => $producao
                 ? 'https://nfe.svrs.rs.gov.br/ws/NfeDistribuicaoDFe/NFeDistribuicaoDFe.asmx'
@@ -612,7 +783,7 @@ class SefazModel
     }
 
     /**
-     * Formata data para padrão SEFAZ
+     * Formata data para padrÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â£o SEFAZ
      */
     private function formatarData($data)
     {
@@ -627,31 +798,31 @@ class SefazModel
      */
     private function gerarChaveConsulta($cnpj)
     {
-        // Implementação simplificada - na prática precisa seguir padrão SEFAZ
+        // ImplementaÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â§ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â£o simplificada - na prÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¡tica precisa seguir padrÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â£o SEFAZ
         return md5($cnpj . date('YmdHis'));
     }
 
     /**
-     * Valida configurações
+     * Valida configuraÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â§ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Âµes
      */
     public function validarConfiguracoes()
     {
         $erros = [];
 
-        // Verificar CNPJ (obrigatório)
+        // Verificar CNPJ (obrigatÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â³rio)
         if (empty($this->config['cnpj']['cnpj'])) {
-            $erros[] = 'CNPJ não configurado';
+            $erros[] = 'CNPJ nÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â£o configurado';
         }
 
-        // Se não tiver certificado do usuário, verificar configuração global
+        // Se nÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â£o tiver certificado do usuÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¡rio, verificar configuraÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â§ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â£o global
         if (empty($this->certificado)) {
-            // Se não tiver certificado do usuário nem do .env, é erro
+            // Se nÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â£o tiver certificado do usuÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¡rio nem do .env, ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â© erro
             if (empty($this->config['sefaz']['certificado'])) {
-                $erros[] = 'Nenhum certificado digital configurado. Faça upload do certificado em "Certificados" no menu ou configure no .env';
+                $erros[] = 'Nenhum certificado digital configurado. FaÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â§a upload do certificado em "Certificados" no menu ou configure no .env';
             } else {
                 // Se tiver certificado no .env, verificar senha
                 if (empty($this->config['sefaz']['senha_certificado'])) {
-                    $erros[] = 'Senha do certificado não configurada no .env';
+                    $erros[] = 'Senha do certificado nÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â£o configurada no .env';
                 }
             }
         }
@@ -668,7 +839,7 @@ class SefazModel
     }
 
     /**
-     * Filtra notas por período
+     * Filtra notas por perÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â­odo
      */
     private function filtrarPorPeriodo($notas, $dataInicio, $dataFim)
     {
@@ -685,7 +856,7 @@ class SefazModel
     }
 
     /**
-     * Obtém código numérico da UF (atualizado com todos os estados)
+     * ObtÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â©m cÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â³digo numÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â©rico da UF (atualizado com todos os estados)
      */
     private function getCodigoUF($uf)
     {
@@ -697,10 +868,10 @@ class SefazModel
             'PE' => '26', 'PI' => '22', 'RJ' => '33', 'RN' => '24',
             'RS' => '43', 'RO' => '11', 'RR' => '14', 'SC' => '42',
             'SP' => '35', 'SE' => '28', 'TO' => '17',
-            // Códigos especiais
+            // CÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â³digos especiais
             'AN' => '91', 'SVRS' => '92', 'SVCAN' => '93'
         ];
 
-        return $codigos[$uf] ?? '35'; // SP como padrão
+        return $codigos[$uf] ?? '35'; // SP como padrÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â£o
     }
 }

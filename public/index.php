@@ -3,6 +3,8 @@
 // Iniciar sessão
 session_start();
 
+$sefazCaBundleDefault = __DIR__ . '/../certs/icpbrasil_raiz_v10.crt';
+
 // Carregar configurações - com tratamento de erro
 try {
     $config = require_once __DIR__ . '/../config/config.php';
@@ -19,6 +21,7 @@ try {
             'ambiente' => '2',
             'certificado' => '',
             'senha_certificado' => '',
+            'ca_bundle' => file_exists($sefazCaBundleDefault) ? $sefazCaBundleDefault : null,
         ],
         'cnpj' => [
             'cnpj' => '',

@@ -2,6 +2,8 @@
 
 require_once __DIR__ . '/../vendor/autoload.php';
 
+$sefazCaBundleDefault = __DIR__ . '/../certs/icpbrasil_raiz_v10.crt';
+
 // Tenta carregar o .env, mas usa fallback se falhar
 try {
     $dotenv = Dotenv\Dotenv::createImmutable(__DIR__ . '/..');
@@ -26,6 +28,7 @@ if ($usarEnv) {
             'ambiente' => $_ENV['SEFAZ_AMBIENTE'] ?? '1',
             'certificado' => $_ENV['SEFAZ_CERTIFICADO'] ?? null, // Opcional - usuário pode fazer upload
             'senha_certificado' => $_ENV['SEFAZ_SENHA_CERTIFICADO'] ?? null, // Opcional - usuário pode fazer upload
+            'ca_bundle' => $_ENV['SEFAZ_CA_BUNDLE'] ?? (file_exists($sefazCaBundleDefault) ? $sefazCaBundleDefault : null),
         ],
         'cnpj' => [
             'cnpj' => $_ENV['CNPJ_CNPJ'] ?? '',
@@ -60,6 +63,7 @@ if ($usarEnv) {
             'ambiente' => '2',
             'certificado' => '',
             'senha_certificado' => '',
+            'ca_bundle' => file_exists($sefazCaBundleDefault) ? $sefazCaBundleDefault : null,
         ],
         'cnpj' => [
             'cnpj' => '',
